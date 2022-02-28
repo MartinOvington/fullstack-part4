@@ -47,7 +47,7 @@ const mostBlogs = (blogs) => {
   return mostBlogs
 }
 
-const mostLikes =(blogs) => {
+const mostLikes = (blogs) => {
   const reducer = (sum, item) => {
     const index = sum.findIndex((blog) => item.author === blog.author)
     if (index > -1) {
