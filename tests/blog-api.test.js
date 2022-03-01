@@ -7,7 +7,7 @@ const Blog = require('../models/blog')
 const User = require('../models/user')
 
 var loginToken = ''
-var userId = { }
+var userId = ''
 
 beforeAll(async () => {
   await User.deleteMany({})
