@@ -4,9 +4,43 @@ const helper = require('./test_helper')
 const app = require('../app')
 const api = supertest(app)
 const Blog = require('../models/blog')
+const User = require('../models/user')
+
+var loginToken = ''
+var userId = { }
+
+beforeAll(async () => {
+  await User.deleteMany({})
+
+  const newUser = {
+    username: 'jerry',
+    name: 'Jerry Seinfeld',
+    password: 'testpassword'
+  }
+
+  const login = {
+    username: 'jerry',
+    password: 'testpassword'
+  }
+
+  const userResponse = await api
+    .post('/api/users')
+    .send(newUser)
+    .expect(201)
+    .expect('Content-Type', /application\/json/)
+
+  userId = userResponse.body._id
+
+  const loginResponse = await api
+    .post('/api/login')
+    .send(login)
+    .expect(200)
+  
+  loginToken = loginResponse.body.token
+})
 
 beforeEach(async () => {  
-  await Blog.deleteMany({})  
+  await Blog.deleteMany({})
   await Blog.insertMany(helper.initialBlogs)
 })
 
@@ -38,11 +72,13 @@ describe('adding a new blog', () => {
     const newBlog = {
       'title' : 'This blog should be added', 
       'url': 'https://www.newBlog.com',
-      'likes': 100
+      'likes': 100,
+      'user': userId
     }
 
     await api
       .post('/api/blogs')
+      .set('Authorization', `bearer ${loginToken}`)
       .send(newBlog)
       .expect(201)
       .expect('Content-Type', /application\/json/)
@@ -57,7 +93,7 @@ describe('adding a new blog', () => {
     )
   })
 
-  test('POST-ing a blog with missing likes defaults to 0 likes', async () => {
+  test('adding a blog with missing likes defaults to 0 likes', async () => {
     const newBlog = {
       'title' : 'Zero likes blog', 
       'url': 'https://www.unpopularblog.com',
@@ -65,6 +101,7 @@ describe('adding a new blog', () => {
 
     await api
       .post('/api/blogs')
+      .set('Authorization', `bearer ${loginToken}`)
       .send(newBlog)
       .expect(201)
       .expect('Content-Type', /application\/json/)
@@ -79,25 +116,45 @@ describe('adding a new blog', () => {
     expect(foundBlog.likes).toBe(0)
   })
 
-  test('POST-ing a blog with missing title or url gets response 400', async () => {
+  test('adding a blog with missing title or url gets response 400', async () => {
     const missingTitle = { 
       'url': 'https://www.notitle.com',
-      'likes': 2
+      'likes': 2,
     }
 
     const missingUrl = {
       'title': 'missing url',
-      'likes': 5
+      'likes': 5,
     }
+
     await api
       .post('/api/blogs')
+      .set('Authorization', `bearer ${loginToken}`)
       .send(missingTitle)
       .expect(400)
 
     await api
       .post('/api/blogs')
+      .set('Authorization', `bearer ${loginToken}`)
       .send(missingUrl)
       .expect(400)
+
+    const blogs = await helper.blogsInDb()
+
+    expect(blogs).toHaveLength(helper.initialBlogs.length)
+  })
+
+  test('adding a blog without toke fails with status code 401', async () => {
+    const blogToAdd = {
+      'title': 'should not be added',
+      'url': 'https://www.google.com',
+      'likes': 2,
+    }
+
+    await api
+      .post('/api/blogs')
+      .send(blogToAdd)
+      .expect(401)
 
     const blogs = await helper.blogsInDb()
 
@@ -112,6 +169,7 @@ describe('deletion of a blog', () => {
 
     await api
       .delete(`/api/blogs/${blogToDelete.id}`)
+      .set('Authorization', `bearer ${loginToken}`)
       .expect(204)
 
     const blogsAtEnd = await helper.blogsInDb()
@@ -124,12 +182,12 @@ describe('deletion of a blog', () => {
   })
 })
 
-test('deletion of an invalid id does not change db, has status code 204', async () => {
+test('deletion of an invalid blog id with valid token has status code 401', async () => {
   const nonExistingId = await helper.nonExistingId()
 
   await api
     .delete(`/api/blogs/${nonExistingId}`)
-    .expect(204)
+    .expect(401)
 
   const blogsAtEnd = await helper.blogsInDb()
 

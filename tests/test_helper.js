@@ -42,7 +42,7 @@ const usersinDb = async () => {
   return users.map(u => u.toJSON())
 }
 module.exports = {
-  initialBlogs, 
+  initialBlogs,
   nonExistingId, 
   blogsInDb, 
   getBlogById, 
